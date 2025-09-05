@@ -125,10 +125,6 @@ jobs:
     needs: docker_build_push
     steps:
       - uses: actions/checkout@v4
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -136,10 +132,19 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: ./terraform
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       - name: Terraform Apply
         run: terraform apply -auto-approve
         working-directory: ./terraform
         env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
           TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
       - name: Get Public IP
