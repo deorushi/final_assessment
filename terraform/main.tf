@@ -1,10 +1,17 @@
 terraform {
   required_version = ">= 1.3.0"
+
   backend "azurerm" {
     resource_group_name  = "rg-terraform-state"
     storage_account_name = "tfstateaccount"
     container_name       = "tfstate"
     key                  = "terraform.tfstate"
+
+    # Explicit SP credentials for backend
+    subscription_id = var.subscription_id
+    client_id       = var.client_id
+    client_secret   = var.client_secret
+    tenant_id       = var.tenant_id
   }
 }
 
@@ -57,12 +64,12 @@ resource "azurerm_public_ip" "vm_pip" {
 }
 
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "ci-cd-vm"
-  resource_group_name = azurerm_resource_group.ci_cd_rg.name
-  location            = azurerm_resource_group.ci_cd_rg.location
-  size                = "Standard_B2s"
-  admin_username      = var.vm_username
-  admin_password      = var.vm_password
+  name                  = "ci-cd-vm"
+  resource_group_name   = azurerm_resource_group.ci_cd_rg.name
+  location              = azurerm_resource_group.ci_cd_rg.location
+  size                  = "Standard_B2s"
+  admin_username        = var.vm_username
+  admin_password        = var.vm_password
   network_interface_ids = [azurerm_network_interface.nic.id]
 
   os_disk {
