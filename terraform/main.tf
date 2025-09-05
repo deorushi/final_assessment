@@ -1,6 +1,5 @@
 terraform {
   required_version = ">= 1.3.0"
-
   backend "azurerm" {
     resource_group_name  = "rg-terraform-state"
     storage_account_name = "tfstateaccount"
@@ -11,11 +10,14 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id = var.subscription_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
-  tenant_id       = var.tenant_id
 }
+
+variable "location" {
+  default = "East US"
+}
+
+variable "vm_username" {}
+variable "vm_password" {}
 
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
@@ -36,6 +38,14 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
+resource "azurerm_public_ip" "vm_pip" {
+  name                = "ci-cd-pip"
+  location            = azurerm_resource_group.ci_cd_rg.location
+  resource_group_name = azurerm_resource_group.ci_cd_rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
 resource "azurerm_network_interface" "nic" {
   name                = "ci-cd-nic"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -49,21 +59,13 @@ resource "azurerm_network_interface" "nic" {
   }
 }
 
-resource "azurerm_public_ip" "vm_pip" {
-  name                = "ci-cd-pip"
-  location            = azurerm_resource_group.ci_cd_rg.location
-  resource_group_name = azurerm_resource_group.ci_cd_rg.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                  = "ci-cd-vm"
-  resource_group_name   = azurerm_resource_group.ci_cd_rg.name
-  location              = azurerm_resource_group.ci_cd_rg.location
-  size                  = "Standard_B2s"
-  admin_username        = var.vm_username
-  admin_password        = var.vm_password
+  name                = "ci-cd-vm"
+  resource_group_name = azurerm_resource_group.ci_cd_rg.name
+  location            = azurerm_resource_group.ci_cd_rg.location
+  size                = "Standard_B2s"
+  admin_username      = var.vm_username
+  admin_password      = var.vm_password
   network_interface_ids = [azurerm_network_interface.nic.id]
 
   os_disk {
@@ -77,4 +79,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
     sku       = "22_04-lts-gen2"
     version   = "latest"
   }
+}
+
+output "public_ip" {
+  value = azurerm_public_ip.vm_pip.ip_address
 }

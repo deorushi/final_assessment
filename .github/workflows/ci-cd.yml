@@ -2,9 +2,9 @@ name: CI-CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
     inputs:
       target_environment:
@@ -12,7 +12,7 @@ on:
         type: choice
         required: true
         default: "staging"
-        options: [ "staging", "production" ]
+        options: ["staging", "production"]
       image_tag:
         description: "Optional custom image tag"
         required: false
@@ -125,19 +125,17 @@ jobs:
     needs: docker_build_push
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/login@v1
+      - name: Login to Azure
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.5
       - run: terraform init
         working-directory: ./terraform
       - run: terraform apply -auto-approve
         working-directory: ./terraform
-        env:
-          TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
-          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
+      - id: get_ip
+        run: echo "PUBLIC_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
+        working-directory: ./terraform
 
   minikube_deploy:
     runs-on: ubuntu-latest
@@ -147,7 +145,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y sshpass
           scp -o StrictHostKeyChecking=no -r k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
       - run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'ENDSSH'
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
             sudo apt-get install -y docker.io curl conntrack socat
 
@@ -167,24 +165,6 @@ jobs:
 
             # Apply manifests
             kubectl apply -f /home/ubuntu/k8s/deployment.yaml
-
-  terraform_cleanup:
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    needs: terraform_apply
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.5
-      - run: terraform destroy -auto-approve
-        working-directory: ./terraform
-        env:
-          TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
-          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
 
   notify:
     runs-on: ubuntu-latest
