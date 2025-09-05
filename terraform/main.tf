@@ -1,10 +1,8 @@
 terraform {
   required_version = ">= 1.3.0"
-  backend "azurerm" {
-    resource_group_name  = "rg-terraform-state"
-    storage_account_name = "tfstateaccount"
-    container_name       = "tfstate"
-    key                  = "terraform.tfstate"
+
+  backend "local" {
+    path = "terraform.tfstate"
   }
 }
 
@@ -12,6 +10,32 @@ provider "azurerm" {
   features {}
 }
 
+# Backend resources (will switch to remote backend later)
+resource "azurerm_resource_group" "backend_rg" {
+  name     = "rg-terraform-state"
+  location = var.location
+}
+
+resource "azurerm_storage_account" "backend_sa" {
+  name                     = "tfstateaccount${random_integer.suffix.result}"
+  resource_group_name      = azurerm_resource_group.backend_rg.name
+  location                 = azurerm_resource_group.backend_rg.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_storage_container" "backend_container" {
+  name                  = "tfstate"
+  storage_account_name  = azurerm_storage_account.backend_sa.name
+  container_access_type = "private"
+}
+
+resource "random_integer" "suffix" {
+  min = 1000
+  max = 9999
+}
+
+# Actual infra resources
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
   location = var.location
@@ -53,12 +77,12 @@ resource "azurerm_network_interface" "nic" {
 }
 
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "ci-cd-vm"
-  resource_group_name = azurerm_resource_group.ci_cd_rg.name
-  location            = azurerm_resource_group.ci_cd_rg.location
-  size                = "Standard_B2s"
-  admin_username      = var.vm_username
-  admin_password      = var.vm_password
+  name                  = "ci-cd-vm"
+  resource_group_name   = azurerm_resource_group.ci_cd_rg.name
+  location              = azurerm_resource_group.ci_cd_rg.location
+  size                  = "Standard_B2s"
+  admin_username        = var.vm_username
+  admin_password        = var.vm_password
   network_interface_ids = [azurerm_network_interface.nic.id]
 
   os_disk {

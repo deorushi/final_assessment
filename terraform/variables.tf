@@ -1,17 +1,15 @@
 variable "vm_username" {
-  description = "Username for the VM"
+  description = "VM username"
+  type        = string
 }
 
 variable "vm_password" {
-  description = "Password for the VM"
+  description = "VM password"
+  type        = string
 }
 
 variable "location" {
   description = "Azure region"
-  default     = "East US"
+  type        = string
+  default     = "EastUS"
 }
-
-variable "subscription_id" {}
-variable "client_id" {}
-variable "client_secret" {}
-variable "tenant_id" {}
