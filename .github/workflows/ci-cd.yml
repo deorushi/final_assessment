@@ -148,8 +148,21 @@ jobs:
         run: terraform init -reconfigure
         working-directory: ./terraform
 
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -detailed-exitcode -out=tfplan
+        working-directory: ./terraform
+        continue-on-error: true
+        env:
+          TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
+          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
+          TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        if: steps.plan.conclusion == 'success' && steps.plan.outcome == 'success'
+        run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
@@ -159,23 +172,8 @@ jobs:
 
       - name: Get Public IP
         id: get_ip
-        run: |
-          run: |
-            IP=$(terraform output -raw public_ip | tr -d '\r\n')
-            echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
+        run: echo "PUBLIC_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
         working-directory: ./terraform
-
-      - name: Cleanup on Failure
-        if: failure()  # runs only if any previous step failed
-        run: |
-          echo "⚠️ Terraform failed, destroying any created resources..."
-          terraform destroy -auto-approve
-        working-directory: ./terraform
-        env:
-          TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
-          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
-          TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
-          TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
   minikube_deploy:
     runs-on: ubuntu-latest
@@ -183,7 +181,7 @@ jobs:
     steps:
       - run: |
           sudo apt-get update && sudo apt-get install -y sshpass
-          scp -o StrictHostKeyChecking=no -r k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -r $GITHUB_WORKSPACE/k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
       - run: |
           sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
