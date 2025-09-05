@@ -160,9 +160,22 @@ jobs:
       - name: Get Public IP
         id: get_ip
         run: |
-          terraform output -raw public_ip > public_ip.txt
-          echo "PUBLIC_IP=$(cat public_ip.txt)" >> $GITHUB_OUTPUT
+          run: |
+            IP=$(terraform output -raw public_ip | tr -d '\r\n')
+            echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
         working-directory: ./terraform
+
+      - name: Cleanup on Failure
+        if: failure()  # runs only if any previous step failed
+        run: |
+          echo "⚠️ Terraform failed, destroying any created resources..."
+          terraform destroy -auto-approve
+        working-directory: ./terraform
+        env:
+          TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
+          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
+          TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
   minikube_deploy:
     runs-on: ubuntu-latest
