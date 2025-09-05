@@ -12,13 +12,6 @@ provider "azurerm" {
   features {}
 }
 
-variable "location" {
-  default = "East US"
-}
-
-variable "vm_username" {}
-variable "vm_password" {}
-
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
   location = var.location
@@ -79,8 +72,4 @@ resource "azurerm_linux_virtual_machine" "vm" {
     sku       = "22_04-lts-gen2"
     version   = "latest"
   }
-}
-
-output "public_ip" {
-  value = azurerm_public_ip.vm_pip.ip_address
 }
