@@ -12,32 +12,7 @@ provider "azurerm" {
   tenant_id       = var.tenant_id
 }
 
-# Backend resources (will switch to remote backend later)
-resource "azurerm_resource_group" "backend_rg" {
-  name     = "rg-terraform-state"
-  location = var.location
-}
-
-resource "azurerm_storage_account" "backend_sa" {
-  name                     = "tfstateaccount${random_integer.suffix.result}"
-  resource_group_name      = azurerm_resource_group.backend_rg.name
-  location                 = azurerm_resource_group.backend_rg.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-}
-
-resource "azurerm_storage_container" "backend_container" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.backend_sa.name
-  container_access_type = "private"
-}
-
-resource "random_integer" "suffix" {
-  min = 1000
-  max = 9999
-}
-
-# Actual infra resources
+# Infra resources
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
   location = var.location
@@ -86,6 +61,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
   admin_username        = var.vm_username
   admin_password        = var.vm_password
   network_interface_ids = [azurerm_network_interface.nic.id]
+
+  disable_password_authentication = false
 
   os_disk {
     caching              = "ReadWrite"
