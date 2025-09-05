@@ -182,7 +182,7 @@ jobs:
     steps:
       - run: |
           sudo apt-get update && sudo apt-get install -y sshpass
-          scp -o StrictHostKeyChecking=no -r k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -r $GITHUB_WORKSPACE/k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
       - run: |
           sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
