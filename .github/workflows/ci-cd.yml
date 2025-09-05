@@ -137,6 +137,10 @@ jobs:
         with:
           terraform_version: 1.5.5
 
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ./terraform
+
       - name: Terraform Destroy (cleanup previous resources)
         run: terraform destroy -auto-approve || true
         working-directory: ./terraform
