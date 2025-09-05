@@ -25,14 +25,6 @@ env:
   IMAGE_NAME: docker.io/${{ secrets.DOCKER_USERNAME }}/hello-flask
   DOCKER_BUILDKIT: "1"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -120,9 +112,24 @@ jobs:
       - id: image
         run: echo "tag=${{ fromJSON(steps.meta.outputs.json).tags[0] }}" >> $GITHUB_OUTPUT
 
-  terraform_apply:
+  terraform_backend_setup:
     runs-on: ubuntu-latest
     needs: docker_build_push
+    steps:
+      - name: Azure CLI Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create backend RG and Storage
+        run: |
+          az group create -n rg-terraform-state -l eastus
+          az storage account create -n tfstateaccount -g rg-terraform-state -l eastus --sku Standard_LRS || true
+          az storage container create -n tfstate -g rg-terraform-state --account-name tfstateaccount || true
+
+  terraform_apply:
+    runs-on: ubuntu-latest
+    needs: terraform_backend_setup
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v2
@@ -148,9 +155,6 @@ jobs:
           TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
           TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
-      - id: get_ip
-        run: echo "PUBLIC_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
-        working-directory: ./terraform
 
   minikube_deploy:
     runs-on: ubuntu-latest
@@ -160,25 +164,21 @@ jobs:
           sudo apt-get update && sudo apt-get install -y sshpass
           scp -o StrictHostKeyChecking=no -r k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
       - run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'SCRIPT'
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
             sudo apt-get install -y docker.io curl conntrack socat
 
-            # Install kubectl
+            # kubectl
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-            # Install Minikube
+            # Minikube
             curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
             sudo install minikube-linux-amd64 /usr/local/bin/minikube
 
-            # Start Minikube
             minikube start --driver=docker
 
-            # Replace image placeholder
             sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|' /home/ubuntu/k8s/deployment.yaml
-
-            # Apply manifests
             kubectl apply -f /home/ubuntu/k8s/deployment.yaml
 
   notify:
@@ -187,7 +187,7 @@ jobs:
     steps:
       - run: |
           FAILED=false
-          for job in lint tests sonarcloud docker_build_push terraform_apply minikube_deploy; do
+          for job in lint tests sonarcloud docker_build_push terraform_backend_setup terraform_apply minikube_deploy; do
             if [ "${{ needs[job].result }}" = "failure" ]; then
               FAILED=true
             fi
@@ -197,5 +197,4 @@ jobs:
             exit 1
           else
             echo "✅ Workflow succeeded"
-
       - run: echo "🌍 App available at http://${{ needs.terraform_apply.outputs.PUBLIC_IP }}"
