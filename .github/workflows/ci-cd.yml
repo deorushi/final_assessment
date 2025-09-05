@@ -127,7 +127,6 @@ jobs:
       PUBLIC_IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -138,31 +137,21 @@ jobs:
         with:
           terraform_version: 1.5.5
 
-      - name: Ensure Terraform Backend Exists
-        run: |
-          az group create --name rg-terraform-state --location eastus
-          az storage account create --name tfstateaccount9999 --resource-group rg-terraform-state --location eastus --sku Standard_LRS
-          az storage container create --name tfstate --account-name tfstateaccount9999
-
-      - name: Terraform Init
-        run: terraform init -reconfigure
+      - name: Terraform Destroy (cleanup previous resources)
+        run: terraform destroy -auto-approve || true
         working-directory: ./terraform
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          terraform plan -detailed-exitcode -out=tfplan
-        working-directory: ./terraform
-        continue-on-error: true
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
           TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
           TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ./terraform
+
       - name: Terraform Apply
-        if: steps.plan.conclusion == 'success' && steps.plan.outcome == 'success'
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve
         working-directory: ./terraform
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
@@ -172,7 +161,8 @@ jobs:
 
       - name: Get Public IP
         id: get_ip
-        run: echo "PUBLIC_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
+        run: |
+          echo "PUBLIC_IP=$(terraform output -raw public_ip)" >> $GITHUB_ENV
         working-directory: ./terraform
 
   minikube_deploy:
@@ -181,27 +171,17 @@ jobs:
     steps:
       - run: |
           sudo apt-get update && sudo apt-get install -y sshpass
-          scp -o StrictHostKeyChecking=no -r $GITHUB_WORKSPACE/k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -r k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
       - run: |
           sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
             sudo apt-get install -y docker.io curl conntrack socat
-
-            # Install kubectl
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-            # Install Minikube
             curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
             sudo install minikube-linux-amd64 /usr/local/bin/minikube
-
-            # Start Minikube
             minikube start --driver=docker
-
-            # Replace image placeholder
             sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|' /home/ubuntu/k8s/deployment.yaml
-
-            # Apply manifests
             kubectl apply -f /home/ubuntu/k8s/deployment.yaml
 
   notify:
@@ -220,5 +200,4 @@ jobs:
             exit 1
           else
             echo "✅ Workflow succeeded"
-
       - run: echo "🌍 App available at http://${{ needs.terraform_apply.outputs.PUBLIC_IP }}"
