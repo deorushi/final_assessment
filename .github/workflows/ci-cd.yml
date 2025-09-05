@@ -154,6 +154,8 @@ jobs:
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
           TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
+          TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+          TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
       - name: Get Public IP
         id: get_ip
