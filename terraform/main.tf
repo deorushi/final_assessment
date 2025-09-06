@@ -115,9 +115,9 @@ resource "azurerm_linux_virtual_machine" "vm" {
               #!/bin/bash
               apt-get update -y
               apt-get install -y docker.io
-              usermod -aG docker ${var.vm_username}
+              usermod -aG docker $${var.vm_username}
               systemctl enable docker
               systemctl restart docker
             EOT)
-            
+
 }
