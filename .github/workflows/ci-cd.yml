@@ -220,8 +220,8 @@ jobs:
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
             curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
             sudo install minikube-linux-amd64 /usr/local/bin/minikube
-            minikube start --driver=docker
-            sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:'"${{ needs.docker_build_push.outputs.tag }}"'|' /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
+            sudo minikube start --driver=docker --force
+            sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
             kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
           EOF
 
