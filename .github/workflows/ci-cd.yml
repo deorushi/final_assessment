@@ -170,11 +170,11 @@ jobs:
 
       - name: Get Public IP
         id: get_ip
+        working-directory: ./terraform
         run: |
           IP=$(terraform output -raw public_ip)
-          echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
-        working-directory: ./terraform
-
+          printf "PUBLIC_IP=%s\n" "$IP" >> $GITHUB_OUTPUT
+        
       - name: Debug Terraform output
         run: |
           echo "Public IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}"
