@@ -171,7 +171,7 @@ jobs:
       - name: Get Public IP
         id: get_ip
         run: |
-          IP=$(terraform output -json public_ip | jq -r .)
+          IP=$(terraform output -raw public_ip)
           echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
         working-directory: ./terraform
 
