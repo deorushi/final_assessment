@@ -171,9 +171,12 @@ jobs:
       - name: Get Public IP
         id: get_ip
         run: |
-          IP=$(terraform output -json public_ip | jq -r .)
+          $(terraform output -raw public_ip)
           echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
         working-directory: ./terraform
+
+      - name: Debug Terraform output
+        run: echo "Public IP: ${{ needs.terraform_apply.outputs.PUBLIC_IP }}"
 
   minikube_deploy:
     runs-on: ubuntu-latest
