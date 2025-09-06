@@ -209,11 +209,11 @@ jobs:
       - name: Copy k8s folder
         working-directory: ${{ github.workspace }}
         run: |
-          scp -o StrictHostKeyChecking=no -r ./k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -r ./k8s ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
 
       - name: Setup Minikube and deploy app
         run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
+          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
             sudo apt-get install -y docker.io curl conntrack socat
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
