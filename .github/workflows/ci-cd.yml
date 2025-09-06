@@ -195,10 +195,20 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install sshpass and copy k8s folder
+      - name: Install SSH client
+        run: |
+          sudo apt-get update && sudo apt-get install -y openssh-client
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ needs.terraform_apply.outputs.PUBLIC_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy k8s folder
         working-directory: ${{ github.workspace }}
         run: |
-          sudo apt-get update && sudo apt-get install -y sshpass
           scp -o StrictHostKeyChecking=no -r ./k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
 
       - name: Setup Minikube and deploy app
