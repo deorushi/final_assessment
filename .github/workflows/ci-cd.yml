@@ -172,8 +172,8 @@ jobs:
         id: get_ip
         working-directory: ./terraform
         run: |
-          IP=$(terraform output -raw public_ip)
-          printf "PUBLIC_IP=%s\n" "$IP" >> $GITHUB_OUTPUT
+          IP=$(terraform output -raw public_ip 2>/dev/null)
+          echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPU
         
       - name: Debug Terraform output
         run: |
