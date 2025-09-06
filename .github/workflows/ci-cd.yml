@@ -214,8 +214,10 @@ jobs:
       - name: Setup Minikube and deploy app
         run: |
           sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
-            sudo apt-get update -y || (sudo rm -f /var/lib/dpkg/lock-frontend && sudo apt-get update -y)
-            sudo apt-get install -y docker.io curl conntrack socat tar git make golang-go
+            sudo apt-get update -y
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock
+            sudo dpkg --configure -a
+            sudo apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go
             sudo groupadd docker || true
             sudo usermod -aG docker ${{ secrets.VM_USERNAME }}
             sudo systemctl enable docker
