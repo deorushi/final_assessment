@@ -176,7 +176,8 @@ jobs:
         working-directory: ./terraform
 
       - name: Debug Terraform output
-        run: echo "Public IP: ${{ needs.terraform_apply.outputs.PUBLIC_IP }}"
+        run: |
+          echo "Public IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}"
 
   minikube_deploy:
     runs-on: ubuntu-latest
@@ -201,7 +202,7 @@ jobs:
             curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
             sudo install minikube-linux-amd64 /usr/local/bin/minikube
             minikube start --driver=docker
-            sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|' /home/ubuntu/k8s/deployment.yaml
+            sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:'"${{ needs.docker_build_push.outputs.tag }}"'|' /home/ubuntu/k8s/deployment.yaml
             kubectl apply -f /home/ubuntu/k8s/deployment.yaml
           EOF
 
