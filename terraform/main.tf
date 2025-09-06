@@ -92,7 +92,12 @@ resource "azurerm_linux_virtual_machine" "vm" {
   admin_password        = var.vm_password
   network_interface_ids = [azurerm_network_interface.nic.id]
 
-  disable_password_authentication = false
+  disable_password_authentication = true
+  
+  admin_ssh_key {
+    username   = var.vm_username
+    public_key = file("${path.module}/ci_cd_key.pub")
+  }
 
   os_disk {
     caching              = "ReadWrite"
