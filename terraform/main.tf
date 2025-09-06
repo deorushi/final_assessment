@@ -110,4 +110,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
     sku       = "server"
     version   = "latest"
   }
+
+  custom_data = base64encode(<<-EOT
+              #!/bin/bash
+              apt-get update -y
+              apt-get install -y docker.io
+              usermod -aG docker ${var.vm_username}
+              systemctl enable docker
+              systemctl restart docker
+            EOT)
+            
 }
