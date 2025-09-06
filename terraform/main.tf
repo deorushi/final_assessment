@@ -12,12 +12,13 @@ provider "azurerm" {
   tenant_id       = var.tenant_id
 }
 
-# Infra resources
+# Resource Group
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
   location = var.location
 }
 
+# Virtual Network
 resource "azurerm_virtual_network" "vnet" {
   name                = "ci-cd-vnet"
   address_space       = ["10.0.0.0/16"]
@@ -25,6 +26,7 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.ci_cd_rg.name
 }
 
+# Subnet
 resource "azurerm_subnet" "subnet" {
   name                 = "ci-cd-subnet"
   resource_group_name  = azurerm_resource_group.ci_cd_rg.name
@@ -32,6 +34,7 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
+# Public IP
 resource "azurerm_public_ip" "vm_pip" {
   name                = "ci-cd-pip"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -40,6 +43,7 @@ resource "azurerm_public_ip" "vm_pip" {
   sku                 = "Standard"
 }
 
+# Network Security Group with SSH
 resource "azurerm_network_security_group" "ssh_nsg" {
   name                = "ci-cd-nsg"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -58,6 +62,7 @@ resource "azurerm_network_security_group" "ssh_nsg" {
   }
 }
 
+# Network Interface
 resource "azurerm_network_interface" "nic" {
   name                = "ci-cd-nic"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -69,11 +74,15 @@ resource "azurerm_network_interface" "nic" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.vm_pip.id
   }
+}
 
-  # Attach NSG to NIC
+# Attach NSG to NIC (must be separate resource)
+resource "azurerm_network_interface_security_group_association" "nic_nsg" {
+  network_interface_id      = azurerm_network_interface.nic.id
   network_security_group_id = azurerm_network_security_group.ssh_nsg.id
 }
 
+# Linux VM
 resource "azurerm_linux_virtual_machine" "vm" {
   name                  = "ci-cd-vm"
   resource_group_name   = azurerm_resource_group.ci_cd_rg.name
