@@ -118,6 +118,7 @@ apt-get install -y docker.io
 usermod -aG docker $${var.vm_username}
 systemctl enable docker
 systemctl restart docker
- EOT)
+EOT
+  )
 
 }
