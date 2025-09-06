@@ -180,10 +180,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform_apply
     steps:
-      - run: |
+      - name: Install sshpass and copy k8s folder
+        working-directory: ${{ github.workspace }}
+        run: |
           sudo apt-get update && sudo apt-get install -y sshpass
           scp -o StrictHostKeyChecking=no -r ./k8s ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/ubuntu/
-      - run: |
+
+      - name: Setup Minikube and deploy app
+        run: |
           sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
             sudo apt-get update
             sudo apt-get install -y docker.io curl conntrack socat
@@ -194,6 +198,7 @@ jobs:
             minikube start --driver=docker
             sed -i 's|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|' /home/ubuntu/k8s/deployment.yaml
             kubectl apply -f /home/ubuntu/k8s/deployment.yaml
+          EOF
 
   notify:
     runs-on: ubuntu-latest
