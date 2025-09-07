@@ -217,7 +217,8 @@ jobs:
             sudo apt-get update -y
             sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock
             sudo dpkg --configure -a
-            sudo apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go containernetworking-plugins
+            sudo apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go containernetworking-plugins make
+            sudo ln -s /usr/sbin/conntrack /usr/local/bin/conntrack || true
             sudo groupadd docker || true
             sudo usermod -aG docker ${{ secrets.VM_USERNAME }}
             sudo systemctl enable docker
@@ -233,7 +234,7 @@ jobs:
             git clone https://github.com/Mirantis/cri-dockerd.git
             cd cri-dockerd
             make cri-dockerd
-            sudo cp ./cri-dockerd /usr/local/bin/
+            sudo cp cri-dockerd /usr/local/bin/
             sudo cp packaging/systemd/* /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable cri-docker.service
