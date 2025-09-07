@@ -12,13 +12,11 @@ provider "azurerm" {
   tenant_id       = var.tenant_id
 }
 
-# Resource Group
 resource "azurerm_resource_group" "ci_cd_rg" {
   name     = "ci-cd-rg"
   location = var.location
 }
 
-# Virtual Network
 resource "azurerm_virtual_network" "vnet" {
   name                = "ci-cd-vnet"
   address_space       = ["10.0.0.0/16"]
@@ -26,7 +24,6 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.ci_cd_rg.name
 }
 
-# Subnet
 resource "azurerm_subnet" "subnet" {
   name                 = "ci-cd-subnet"
   resource_group_name  = azurerm_resource_group.ci_cd_rg.name
@@ -34,7 +31,6 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Public IP
 resource "azurerm_public_ip" "vm_pip" {
   name                = "ci-cd-pip"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -43,7 +39,6 @@ resource "azurerm_public_ip" "vm_pip" {
   sku                 = "Standard"
 }
 
-# Network Security Group with SSH
 resource "azurerm_network_security_group" "ssh_nsg" {
   name                = "ci-cd-nsg"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -62,7 +57,6 @@ resource "azurerm_network_security_group" "ssh_nsg" {
   }
 }
 
-# Network Interface
 resource "azurerm_network_interface" "nic" {
   name                = "ci-cd-nic"
   location            = azurerm_resource_group.ci_cd_rg.location
@@ -76,13 +70,11 @@ resource "azurerm_network_interface" "nic" {
   }
 }
 
-# Attach NSG to NIC (must be separate resource)
 resource "azurerm_network_interface_security_group_association" "nic_nsg" {
   network_interface_id      = azurerm_network_interface.nic.id
   network_security_group_id = azurerm_network_security_group.ssh_nsg.id
 }
 
-# Linux VM
 resource "azurerm_linux_virtual_machine" "vm" {
   name                  = "ci-cd-vm"
   resource_group_name   = azurerm_resource_group.ci_cd_rg.name
@@ -111,14 +103,44 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 
+  # FULL AUTOMATION: install all dependencies
   custom_data = base64encode(<<-EOT
 #!/bin/bash
+set -e
+
+# Update & Install packages
 apt-get update -y
-apt-get install -y docker.io
-usermod -aG docker $${var.vm_username}
+DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go make sshpass
+
+# Enable Docker
+usermod -aG docker ${var.vm_username}
 systemctl enable docker
 systemctl restart docker
+
+# Install kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Install Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Install CNI plugins
+mkdir -p /opt/cni/bin
+curl -L https://github.com/containernetworking/plugins/releases/download/v1.1.1/cni-plugins-linux-amd64-v1.1.1.tgz | tar -C /opt/cni/bin -xz
+
+# Install cri-dockerd
+git clone https://github.com/Mirantis/cri-dockerd.git /tmp/cri-dockerd
+cd /tmp/cri-dockerd
+make cri-dockerd
+cp cri-dockerd /usr/local/bin/
+cp packaging/systemd/* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable cri-docker.service
+systemctl start cri-docker.service
+
+# Ensure conntrack is in PATH
+ln -s /usr/sbin/conntrack /usr/local/bin/conntrack || true
 EOT
   )
-
 }

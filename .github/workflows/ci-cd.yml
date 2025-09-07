@@ -213,36 +213,11 @@ jobs:
 
       - name: Setup Minikube and deploy app
         run: |
-          sshpass -p "${{ secrets.VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
-            sudo apt-get update -y
-            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock
-            sudo dpkg --configure -a
-            sudo apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go containernetworking-plugins make
-            sudo ln -s /usr/sbin/conntrack /usr/local/bin/conntrack || true
-            sudo groupadd docker || true
-            sudo usermod -aG docker ${{ secrets.VM_USERNAME }}
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-            sudo install minikube-linux-amd64 /usr/local/bin/minikube
-            CRICTL_VERSION="v1.30.0"
-            curl -LO https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz
-            sudo tar zxvf crictl-${CRICTL_VERSION}-linux-amd64.tar.gz -C /usr/local/bin
-            rm crictl-${CRICTL_VERSION}-linux-amd64.tar.gz
-            git clone https://github.com/Mirantis/cri-dockerd.git
-            cd cri-dockerd
-            make cri-dockerd
-            sudo cp cri-dockerd /usr/local/bin/
-            sudo cp packaging/systemd/* /etc/systemd/system/
-            sudo systemctl daemon-reload
-            sudo systemctl enable cri-docker.service
-            sudo systemctl start cri-docker.service
-            cd ..
-            sudo -u ${{ secrets.VM_USERNAME }} env PATH=$PATH:/usr/sbin:/usr/bin:/usr/local/bin minikube start --driver=none --force
-            sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
-            kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
+           export PATH=$PATH:/usr/sbin:/usr/bin:/usr/local/bin
+           minikube start --driver=none --force
+           sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
+           kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
           EOF
 
   notify:
