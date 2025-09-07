@@ -232,8 +232,7 @@ jobs:
             rm crictl-${CRICTL_VERSION}-linux-amd64.tar.gz
             git clone https://github.com/Mirantis/cri-dockerd.git
             cd cri-dockerd
-            mkdir -p bin
-            make
+            make cri-dockerd
             sudo cp cri-dockerd /usr/local/bin/
             sudo cp packaging/systemd/* /etc/systemd/system/
             sudo systemctl daemon-reload

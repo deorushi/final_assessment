@@ -1,19 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hello-flask
+  name: my-app
+  labels:
+    app: my-app
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
-      app: hello-flask
+      app: my-app
   template:
     metadata:
       labels:
-        app: hello-flask
+        app: my-app
     spec:
       containers:
-        - name: hello-flask
+        - name: my-app
           image: IMAGE_PLACEHOLDER
           ports:
             - containerPort: 8000
@@ -22,12 +24,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hello-flask-service
+  name: my-app-service
 spec:
-  type: LoadBalancer
   selector:
-    app: hello-flask
+    app: my-app
   ports:
     - protocol: TCP
       port: 80
       targetPort: 8000
+  type: NodePort
