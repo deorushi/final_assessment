@@ -141,9 +141,16 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir=./terraform init -reconfigure
 
-      - name: Terraform Destroy (cleanup existing resources)
-        run: terraform -chdir=./terraform destroy -auto-approve
-        continue-on-error: true
+      - name: Cleanup existing resource group
+        run: |
+          if az group show --name ci-cd-rg &>/dev/null; then
+            echo "Deleting existing resource group ci-cd-rg..."
+            az group delete --name ci-cd-rg --yes --no-wait
+            echo "Waiting for deletion..."
+            az group wait --name ci-cd-rg --deleted
+          else
+            echo "Resource group ci-cd-rg does not exist. Skipping delete."
+          fi
 
       - name: Terraform Apply
         run: terraform -chdir=./terraform apply -auto-approve
