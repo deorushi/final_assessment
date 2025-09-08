@@ -39,17 +39,3 @@ resource "azurerm_kubernetes_cluster" "aks" {
     environment = "ci-cd"
   }
 }
-
-# AKS Credentials Output
-output "kube_config" {
-  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
-  sensitive = true
-}
-
-output "aks_api_server" {
-  value = azurerm_kubernetes_cluster.aks.kube_admin_config.0.host
-}
-
-output "aks_resource_group" {
-  value = azurerm_kubernetes_cluster.aks.node_resource_group
-}
