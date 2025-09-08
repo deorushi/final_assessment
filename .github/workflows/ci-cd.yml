@@ -173,7 +173,7 @@ jobs:
         run: |
           az aks get-credentials \
             --resource-group ci-cd-rg \
-            --name ${{ needs.terraform_apply.outputs.AKS_CLUSTER_NAME }} \
+            --name ci-cd-aks \
             --overwrite-existing
 
       - name: Deploy to AKS
