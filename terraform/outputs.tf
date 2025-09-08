@@ -1,9 +1,9 @@
 output "aks_api_server" {
-  value = azurerm_kubernetes_cluster.aks.kube_admin_config.host
+  value = try(azurerm_kubernetes_cluster.aks.kube_admin_config[0].host, "")
 }
 
 output "aks_kube_config_raw" {
-  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
+  value     = try(azurerm_kubernetes_cluster.aks.kube_admin_config_raw, "")
   sensitive = true
 }
 
