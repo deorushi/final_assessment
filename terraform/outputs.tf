@@ -1,5 +1,5 @@
 output "aks_api_server" {
-  value = azurerm_kubernetes_cluster.aks.kube_admin_config[0].host
+  value = azurerm_kubernetes_cluster.aks.kube_admin_config.host
 }
 
 output "aks_kube_config_raw" {
