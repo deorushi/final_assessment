@@ -142,10 +142,16 @@ git clone https://github.com/Mirantis/cri-dockerd.git /tmp/cri-dockerd
 cd /tmp/cri-dockerd
 make
 install -m 0755 cri-dockerd /usr/local/bin/cri-dockerd
-cp -r packaging/systemd/* /etc/systemd/system/
+
+# Set up systemd service
+mkdir -p /etc/systemd/system
+cp packaging/systemd/cri-docker.service /etc/systemd/system/
+cp packaging/systemd/cri-docker.socket /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable cri-docker.service
+systemctl enable cri-docker.socket
 systemctl start cri-docker.service
+systemctl start cri-docker.socket
 cd /
 
 # CNI plugins
