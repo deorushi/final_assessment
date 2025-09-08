@@ -113,8 +113,9 @@ jobs:
 
       - name: Terraform Init & Apply
         run: |
-          terraform init -reconfigure ./terraform
-          terraform apply -auto-approve ./terraform
+          terraform -chdir=./terraform init -reconfigure
+          terraform -chdir=./terraform apply -auto-approve
+
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
           TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
