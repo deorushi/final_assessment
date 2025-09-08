@@ -132,9 +132,9 @@ rm -f /tmp/minikube
 
 # crictl (hardcoded version to avoid Terraform interpolation issues)
 CRICTL_VERSION="v1.30.0"
-curl -Lo /tmp/crictl-${CRICTL_VERSION}.tar.gz "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz"
-tar -C /usr/local/bin -xzf /tmp/crictl-${CRICTL_VERSION}.tar.gz
-rm -f /tmp/crictl-${CRICTL_VERSION}.tar.gz
+curl -Lo /tmp/crictl-$${CRICTL_VERSION}.tar.gz "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz"
+tar -C /usr/local/bin -xzf /tmp/crictl-$${CRICTL_VERSION}.tar.gz
+rm -f /tmp/crictl-$${CRICTL_VERSION}.tar.gz
 
 # cri-dockerd
 git clone https://github.com/Mirantis/cri-dockerd.git /tmp/cri-dockerd
