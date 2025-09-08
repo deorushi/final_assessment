@@ -213,11 +213,30 @@ jobs:
 
       - name: Setup Minikube and deploy app
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
-           export PATH=$PATH:/usr/sbin:/usr/bin:/usr/local/bin
-           minikube start --driver=none --force
-           sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
-           kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
+            set -e
+            # Wait for cloud-init to finish (safe-guard)
+            if command -v cloud-init >/dev/null 2>&1; then
+              sudo cloud-init status --wait || true
+            else
+              # small delay if cloud-init not present
+              sleep 10
+            fi
+
+            # Add /usr/local/bin to path to find kubectl/minikube
+            export PATH=$PATH:/usr/local/bin:/usr/sbin:/usr/bin
+
+            echo "Preflight: which minikube; which kubectl; which docker"
+            which minikube || { echo "minikube missing"; exit 1; }
+            which kubectl || { echo "kubectl missing"; exit 1; }
+            sudo systemctl status docker --no-pager || true
+
+            # start minikube (none driver). Run as the VM user
+            sudo -u $USER env PATH=$PATH minikube start --driver=none --force
+
+            # replace placeholder and deploy
+            sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
+            kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
           EOF
 
   notify:
