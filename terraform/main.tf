@@ -111,14 +111,11 @@ resource "azurerm_linux_virtual_machine" "vm" {
 set -e
 export DEBIAN_FRONTEND=noninteractive
 
-# Basic packages and build tools
+# Basic packages
 apt-get update -y
 apt-get install -y docker.io curl conntrack socat tar git build-essential golang-go make wget unzip
 
-# ensure conntrack binary accessible
-if [ -x /usr/sbin/conntrack ]; then ln -sf /usr/sbin/conntrack /usr/local/bin/conntrack || true; fi
-
-# Docker: enable and start
+# Docker
 usermod -aG docker ${var.vm_username}
 systemctl enable docker
 systemctl start docker
@@ -133,15 +130,15 @@ curl -Lo /tmp/minikube https://storage.googleapis.com/minikube/releases/latest/m
 install /tmp/minikube /usr/local/bin/minikube
 rm -f /tmp/minikube
 
-# crictl (cri-tools)
+# crictl (hardcoded version to avoid Terraform interpolation issues)
 CRICTL_VERSION="v1.30.0"
 curl -Lo /tmp/crictl-${CRICTL_VERSION}.tar.gz "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz"
 tar -C /usr/local/bin -xzf /tmp/crictl-${CRICTL_VERSION}.tar.gz
 rm -f /tmp/crictl-${CRICTL_VERSION}.tar.gz
 
-# cri-dockerd build & systemd service
+# cri-dockerd
 git clone https://github.com/Mirantis/cri-dockerd.git /tmp/cri-dockerd
-cd /tmp/cri-dockerd || exit 0
+cd /tmp/cri-dockerd
 make cri-dockerd || true
 if [ -f cri-dockerd ]; then
   install -m 0755 cri-dockerd /usr/local/bin/cri-dockerd
@@ -152,11 +149,10 @@ if [ -f cri-dockerd ]; then
 fi
 cd /
 
-# CNI plugins required by none driver
+# CNI plugins
 mkdir -p /opt/cni/bin
 curl -L https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz | tar -C /opt/cni/bin -xz
 
-# Final sync and cleanup
 sync
 EOT
   )
