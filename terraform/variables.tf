@@ -1,8 +1,3 @@
-variable "vm_username" {
-  description = "Username for AKS nodes SSH (optional)"
-  type        = string
-}
-
 variable "location" {
   description = "Azure region"
   type        = string
