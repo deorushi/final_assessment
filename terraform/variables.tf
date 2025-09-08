@@ -1,10 +1,5 @@
 variable "vm_username" {
-  description = "VM username"
-  type        = string
-}
-
-variable "vm_password" {
-  description = "VM password"
+  description = "Username for AKS nodes SSH (optional)"
   type        = string
 }
 

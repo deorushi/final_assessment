@@ -7,12 +7,6 @@ on:
     branches: ["main"]
   workflow_dispatch:
     inputs:
-      target_environment:
-        description: "Where to deploy"
-        type: choice
-        required: true
-        default: "staging"
-        options: ["staging", "production"]
       image_tag:
         description: "Optional custom image tag"
         required: false
@@ -24,14 +18,6 @@ env:
   REGISTRY: docker.io
   IMAGE_NAME: docker.io/${{ secrets.DOCKER_USERNAME }}/hello-flask
   DOCKER_BUILDKIT: "1"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  packages: write
 
 jobs:
   lint:
@@ -47,21 +33,12 @@ jobs:
       - run: flake8 app tests
 
   tests:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11"]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          python-version: "3.11"
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest coverage
@@ -70,7 +47,7 @@ jobs:
           coverage xml -o coverage.xml
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: coverage
           path: coverage.xml
 
   sonarcloud:
@@ -80,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: coverage-ubuntu-latest-py3.11
+          name: coverage
           path: .
       - uses: SonarSource/sonarcloud-github-action@v2
         env:
@@ -90,7 +67,6 @@ jobs:
   docker_build_push:
     runs-on: ubuntu-latest
     needs: [lint, tests, sonarcloud]
-    if: github.event_name != 'pull_request'
     outputs:
       tag: ${{ steps.image.outputs.tag }}
     steps:
@@ -104,7 +80,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ github.event.inputs.image_tag }}
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       - uses: docker/setup-buildx-action@v3
@@ -123,8 +99,6 @@ jobs:
   terraform_apply:
     runs-on: ubuntu-latest
     needs: docker_build_push
-    outputs:
-      PUBLIC_IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}
     steps:
       - uses: actions/checkout@v4
       - name: Azure Login
@@ -137,122 +111,60 @@ jobs:
         with:
           terraform_version: 1.5.5
 
-      - name: Ensure Terraform Backend Exists
+      - name: Terraform Init & Apply
         run: |
-          az group create --name rg-terraform-state --location eastus
-          az storage account create --name tfstateaccount9999 --resource-group rg-terraform-state --location eastus --sku Standard_LRS
-          az storage container create --name tfstate --account-name tfstateaccount9999
-
-      - name: Cleanup existing resource group
-        run: |
-          echo "Checking if ci-cd-rg exists..."
-          if az group show --name ci-cd-rg &>/dev/null; then
-            echo "Deleting existing ci-cd-rg..."
-            az group delete --name ci-cd-rg --yes --no-wait
-            echo "Waiting for deletion..."
-            az group wait --name ci-cd-rg --deleted
-          else
-            echo "ci-cd-rg does not exist. Skipping delete."
-          fi
-
-      - name: Terraform Init
-        run: terraform init -reconfigure
-        working-directory: ./terraform
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: ./terraform
+          terraform init -reconfigure ./terraform
+          terraform apply -auto-approve ./terraform
         env:
           TF_VAR_vm_username: ${{ secrets.VM_USERNAME }}
-          TF_VAR_vm_password: ${{ secrets.VM_PASSWORD }}
           TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
-      - name: Get Public IP
-        id: get_ip
-        working-directory: ./terraform
-        run: |
-          # Capture output
-          RAW_IP=$(terraform output public_ip)
-          # Extract IP using regex
-          if [[ $RAW_IP =~ ([0-9]{1,3}(\.[0-9]{1,3}){3}) ]]; then
-            IP="${BASH_REMATCH[1]}"
-            echo "PUBLIC_IP=$IP" >> $GITHUB_OUTPUT
-            echo "Extracted public IP: $IP"
-          else
-            echo "Error: Could not parse public IP"
-            exit 1
-          fi
-        
-      - name: Debug Terraform output
-        run: |
-          echo "Public IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}"
-
-  minikube_deploy:
+  aks_deploy:
     runs-on: ubuntu-latest
-    needs: terraform_apply
+    needs: [docker_build_push, terraform_apply]
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install SSH client
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install kubectl
         run: |
-          sudo apt-get update && sudo apt-get install -y openssh-client
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          rm kubectl
 
-      - name: Setup SSH key
+      - name: Get AKS Credentials
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ needs.terraform_apply.outputs.PUBLIC_IP }} >> ~/.ssh/known_hosts
+          az aks get-credentials \
+            --resource-group ci-cd-rg \
+            --name ci-cd-aks \
+            --admin \
+            --file kubeconfig
+        env:
+          KUBECONFIG: ${{ github.workspace }}/kubeconfig
 
-      - name: Copy k8s folder
-        working-directory: ${{ github.workspace }}
+      - name: Deploy to AKS
+        env:
+          IMAGE_TAG: ${{ needs.docker_build_push.outputs.tag }}
         run: |
-          scp -o StrictHostKeyChecking=no -r ./k8s ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/
+          sed -i "s|IMAGE_PLACEHOLDER|docker.io/${{ secrets.DOCKER_USERNAME }}/hello-flask:${IMAGE_TAG}|" deployment.yml
+          KUBECONFIG=${{ github.workspace }}/kubeconfig kubectl apply -f deployment.yml
 
-      - name: Setup Minikube and deploy app
+      - name: Get LoadBalancer IP
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ needs.terraform_apply.outputs.PUBLIC_IP }} bash -s <<'EOF'
-            set -e
-            # Wait for cloud-init to finish (safe-guard)
-            if command -v cloud-init >/dev/null 2>&1; then
-              sudo cloud-init status --wait || true
-            else
-              # small delay if cloud-init not present
-              sleep 10
-            fi
-
-            # Add /usr/local/bin to path to find kubectl/minikube
-            export PATH=$PATH:/usr/local/bin:/usr/sbin:/usr/bin
-
-            echo "Preflight: which minikube; which kubectl; which docker"
-            which minikube || { echo "minikube missing"; exit 1; }
-            which kubectl || { echo "kubectl missing"; exit 1; }
-            sudo systemctl status docker --no-pager || true
-
-            # start minikube (none driver). Run as the VM user
-            sudo -u $USER env PATH=$PATH minikube start --driver=none --force
-
-            # replace placeholder and deploy
-            sed -i "s|IMAGE_PLACEHOLDER|${{ env.IMAGE_NAME }}:${{ needs.docker_build_push.outputs.tag }}|" /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
-            kubectl apply -f /home/${{ secrets.VM_USERNAME }}/k8s/deployment.yml
-          EOF
+          KUBECONFIG=${{ github.workspace }}/kubeconfig
+          echo "App LoadBalancer IP:"
+          kubectl get svc my-app-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 
   notify:
     runs-on: ubuntu-latest
-    needs: [lint, tests, sonarcloud, docker_build_push, terraform_apply, minikube_deploy]
+    needs: [lint, tests, sonarcloud, docker_build_push, terraform_apply, aks_deploy]
     steps:
       - run: |
-          FAILED=false
-          for job in lint tests sonarcloud docker_build_push terraform_apply minikube_deploy; do
-            if [ "${{ needs[job].result }}" = "failure" ]; then
-              FAILED=true
-            fi
-          done
-          if [ "$FAILED" = "true" ]; then
-            echo "❌ Workflow failed"
-            exit 1
-          else
-            echo "✅ Workflow succeeded"
-      - run: echo "🌍 App available at http://${{ needs.terraform_apply.outputs.PUBLIC_IP }}"
+          echo "✅ Workflow succeeded"
+          KUBECONFIG=${{ github.workspace }}/kubeconfig
+          kubectl get svc my-app-service
