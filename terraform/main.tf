@@ -31,8 +31,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     type = "SystemAssigned"
   }
 
-  enable_rbac = true
-
   network_profile {
     network_plugin = "azure"
   }
@@ -44,7 +42,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
 # AKS Credentials Output
 output "kube_config" {
-  value = azurerm_kubernetes_cluster.aks.kube_config_raw
+  value     = azurerm_kubernetes_cluster.aks.kube_admin_config_raw
   sensitive = true
 }
 
