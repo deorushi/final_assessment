@@ -23,7 +23,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   default_node_pool {
     name       = "default"
-    node_count = 2
+    node_count = 1
     vm_size    = "Standard_B2s"
   }
 
@@ -31,23 +31,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
     type = "SystemAssigned"
   }
 
+  enable_rbac = true
+
   network_profile {
-    network_plugin    = "azure"
-    dns_service_ip    = "10.2.0.10"
-    service_cidr      = "10.2.0.0/24"
-    docker_bridge_cidr = "172.17.0.1/16"
-  }
-
-  role_based_access_control {
-    enabled = true
-  }
-
-  linux_profile {
-    admin_username = var.vm_username
-
-    ssh_key {
-      key_data = file("${path.module}/ci_cd_key.pub")
-    }
+    network_plugin = "azure"
   }
 
   tags = {
@@ -55,8 +42,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
-# Output kubeconfig for GitHub Actions
-output "kubeconfig" {
-  value     = azurerm_kubernetes_cluster.aks.kube_config_raw
+# AKS Credentials Output
+output "kube_config" {
+  value = azurerm_kubernetes_cluster.aks.kube_config_raw
   sensitive = true
+}
+
+output "aks_api_server" {
+  value = azurerm_kubernetes_cluster.aks.kube_admin_config.0.host
+}
+
+output "aks_resource_group" {
+  value = azurerm_kubernetes_cluster.aks.node_resource_group
 }
