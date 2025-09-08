@@ -137,16 +137,15 @@ tar -C /usr/local/bin -xzf /tmp/crictl-$CRICTL_VERSION.tar.gz
 rm -f /tmp/crictl-$CRICTL_VERSION.tar.gz
 
 # cri-dockerd   
+apt-get install -y golang-go git build-essential
 git clone https://github.com/Mirantis/cri-dockerd.git /tmp/cri-dockerd
 cd /tmp/cri-dockerd
-make cri-dockerd || true
-if [ -f cri-dockerd ]; then
-  install -m 0755 cri-dockerd /usr/local/bin/cri-dockerd
-  cp -r packaging/systemd/* /etc/systemd/system/ || true
-  systemctl daemon-reload || true
-  systemctl enable cri-docker.service || true
-  systemctl start cri-docker.service || true
-fi
+make
+install -m 0755 cri-dockerd /usr/local/bin/cri-dockerd
+cp -r packaging/systemd/* /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable cri-docker.service
+systemctl start cri-docker.service
 cd /
 
 # CNI plugins
