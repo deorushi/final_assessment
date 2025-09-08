@@ -158,12 +158,6 @@ jobs:
           TF_VAR_subscription_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
           TF_VAR_tenant_id: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
 
-      - name: Get AKS cluster name
-        id: get_aks
-        run: |
-          CLUSTER_NAME=$(terraform -chdir=./terraform output -raw aks_cluster_name 2>/dev/null | tr -d '\r\n')
-          echo "cluster_name=$CLUSTER_NAME" >> $GITHUB_OUTPUT
-
   deploy_to_aks:
     runs-on: ubuntu-latest
     needs: terraform_apply
